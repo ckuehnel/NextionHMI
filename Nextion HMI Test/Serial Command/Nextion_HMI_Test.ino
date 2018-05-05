@@ -17,21 +17,20 @@
 // ISR interrupt service routine
 #include <avr/interrupt.h>
 
-//#define DEBUG  // comment if no debugging
+#define DEBUG  // comment if no debugging
 
 #define DHTTYPE DHT11   // DHT 11
 //#define DHTTYPE DHT21   // DHT 21 (AM2301)
 //#define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
 #define DHTPIN 7
 
-// Nextion TX to pin 10 and RX to pin 11 of Arduino
-SoftwareSerial HMISerial(10, 11);
-
 String message;
 const int pRelais = 2;
 const int pLED = LED_BUILTIN;
 boolean Interrupt = false;
 
+// Nextion TX to pin 10 and RX to pin 11 of Arduino
+SoftwareSerial HMISerial(10, 11);
 
 // Initialize DHT sensor
 DHT dht(DHTPIN, DHTTYPE);
@@ -44,27 +43,17 @@ void HMIprint(String str)
   HMISerial.write(0xFF);
 }
 
+// Install the interrupt routine for Timer1 CompareA
+ISR(TIMER1_COMPA_vect)       
+{
+  Interrupt = true;
+}
+
 void queryDHT11() 
 {
   char msg[20];
   
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
-  float humidity = dht.readHumidity();
-  //float humidity=66.6;          // for test only
-  Serial.print("Humidity: ");
-  Serial.println(humidity,0);
-  if (!isnan(humidity)) 
-  {
-    dtostrf(humidity, 2, 0, msg);  //2 is mininum width, 0 is precision
-    String toHMI = "t1.txt=\""; 
-    toHMI += msg; 
-    toHMI += "\"";
-    #ifdef DEBUG 
-      Serial.println(toHMI); 
-    #endif
-    HMIprint(toHMI);
-  }
-  
   // Read temperature as Celsius (the default)
   float temperature = dht.readTemperature();
   //float temperature=33.3;       // for test only
@@ -76,7 +65,7 @@ void queryDHT11()
     Serial.println("Failed to read from DHT sensor!");
     return;
   }
-  if (!isnan(temperature)) 
+  else 
   {
     dtostrf(temperature, 3, 1, msg);  //3 is mininum width, 1 is precision
     String toHMI = "t0.txt=\""; 
@@ -87,12 +76,28 @@ void queryDHT11()
     #endif
     HMIprint(toHMI);
   }
-}
 
-// Install the interrupt routine for Timer1 CompareA
-ISR(TIMER1_COMPA_vect)       
-{
-  Interrupt = true;
+  float humidity = dht.readHumidity();
+  //float humidity=66.6;          // for test only
+  Serial.print("Humidity: ");
+  Serial.println(humidity,0);
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(humidity)) 
+  {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+  else 
+  {
+    dtostrf(humidity, 2, 0, msg);  //2 is mininum width, 0 is precision
+    String toHMI = "t1.txt=\""; 
+    toHMI += msg; 
+    toHMI += "\"";
+    #ifdef DEBUG 
+      Serial.println(toHMI); 
+    #endif
+    HMIprint(toHMI);
+  }
 }
 
 void setup()
@@ -104,11 +109,11 @@ void setup()
   // Set the baudrate which is for debug and communicate with Nextion HMI
   HMISerial.begin(9600);
 
-  pinMode(pRelais, OUTPUT);          // set pin to output
-  digitalWrite(pRelais, HIGH);       // turn off relais
+  pinMode(pRelais, OUTPUT);       // set pin to output
+  digitalWrite(pRelais, HIGH);    // turn off relais
 
   pinMode(pLED, OUTPUT);          // set pin to output
-  digitalWrite(pLED, LOW);       // turn off LED
+  digitalWrite(pLED, LOW);        // turn off LED
   
   while(!Serial);
   Serial.println("Nextion HMI Test");
@@ -156,6 +161,5 @@ void loop()
     HMIprint("lauf.txt=\"Fan stopped.\"");
     message = "";
   }
-
 }
 
